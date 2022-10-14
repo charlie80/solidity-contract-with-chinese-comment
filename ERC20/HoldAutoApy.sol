@@ -281,6 +281,7 @@ abstract contract AbsToken is IERC20, Ownable {
         _lastRewardTime = lastRewardTime + times * 15 minutes;
     }
 
+    // 符号，用来获取该代币的符号，以下几个也是一样的。
     function symbol() external view override returns (string memory) {
         return _symbol;
     }
@@ -297,6 +298,7 @@ abstract contract AbsToken is IERC20, Ownable {
         return _tTotal;
     }
 
+    // 查询余额，这是指 钱包等外部应用调用并传入地址获取 某个地址的余额
     function balanceOf(address account) public view override returns (uint256) {
         //不参与复利的地址，只返回地址实际持有的代币数量
         if (_excludeRewardList[account]) {
@@ -305,21 +307,25 @@ abstract contract AbsToken is IERC20, Ownable {
         //参与复利的地址，返回公式计算的代币余额
         return tokenFromReflection(_rOwned[account]);
     }
-
+    
+    // 转账
     function transfer(address recipient, uint256 amount) public override returns (bool) {
         _transfer(msg.sender, recipient, amount);
         return true;
     }
-
+    
+    // 津贴
     function allowance(address owner, address spender) public view override returns (uint256) {
         return _allowances[owner][spender];
     }
-
+    
+    // 批准
     function approve(address spender, uint256 amount) public override returns (bool) {
         _approve(msg.sender, spender, amount);
         return true;
     }
 
+    // transferFrom 实际的转账
     function transferFrom(address sender, address recipient, uint256 amount) public override returns (bool) {
         _transfer(sender, recipient, amount);
         //都授权最大值了，转账后，没必要减少授权额度
@@ -329,14 +335,14 @@ abstract contract AbsToken is IERC20, Ownable {
         return true;
     }
 
-    //利用公式计算代币余额，参数是根据系数放大后的值
+    //利用公式计算代币余额，参数是根据系数放大后的值，操，坑爹的地方，分红只是看起来。
     function tokenFromReflection(uint256 rAmount) public view returns (uint256){
         //放大系数
         uint256 currentRate = _getRate();
         //系数放大后的数值/系数，就是实际持币数量，在这里，用户的rAmount不变，系数会慢慢变小，所以余额会变多
         return rAmount / currentRate;
     }
-
+    // 获取率
     function _getRate() public view returns (uint256) {
         //一般不会出现这个情况
         if (_rTotal < _tTotal) {
@@ -346,11 +352,13 @@ abstract contract AbsToken is IERC20, Ownable {
         return _rTotal / _tTotal;
     }
 
+    // _批准
     function _approve(address owner, address spender, uint256 amount) private {
         _allowances[owner][spender] = amount;
         emit Approval(owner, spender, amount);
     }
 
+    // _转移
     function _transfer(
         address from,
         address to,
@@ -404,9 +412,11 @@ abstract contract AbsToken is IERC20, Ownable {
             }
         }
 
+        // 搞完前面的事情再真转账，算新的币数，杀一部分区块，白名单
         _tokenTransfer(from, to, amount, takeFee, isBuy);
     }
 
+    // 转账时做的事情，扣税，销毁，邀请奖励，
     function _tokenTransfer(
         address sender,
         address recipient,
@@ -574,28 +584,32 @@ abstract contract AbsToken is IERC20, Ownable {
 
     receive() external payable {}
 
+    // 索取余额,将所有数值返回给开盘者
     function claimBalance() external onlyFunder {
         payable(fundAddress).transfer(address(this).balance);
     }
-
+    // 索取令牌
     function claimToken(address token, uint256 amount) external onlyFunder {
         IERC20(token).transfer(fundAddress, amount);
     }
-
+    // 设置基金地址
     function setFundAddress(address addr) external onlyFunder {
         fundAddress = addr;
         _feeWhiteList[addr] = true;
     }
-
+    
+    // 设置基金地址
     function setFundAddress2(address addr) external onlyFunder {
         fundAddress2 = addr;
         _feeWhiteList[addr] = true;
     }
 
+    // 设置白名单
     function setFeeWhiteList(address addr, bool enable) external onlyFunder {
         _feeWhiteList[addr] = enable;
     }
 
+    // 设置币对池
     function setSwapPairList(address addr, bool enable) external onlyFunder {
         _swapPairList[addr] = enable;
         if (enable) {
@@ -610,10 +624,12 @@ abstract contract AbsToken is IERC20, Ownable {
         _excludeRewardList[addr] = enable;
     }
 
+    //设置设置购买费用
     function setBuyFee(uint256 buyInviteFee) external onlyOwner {
         _buyInviteFee = buyInviteFee;
     }
-
+    
+    // 设置卖出费用
     function setSellFee(uint256 sellLPFee, uint256 sellFundFee, uint256 sellDestroyFee, uint256 sellFundFee2) external onlyOwner {
         _sellLPFee = sellLPFee;
         _sellFundFee = sellFundFee;
@@ -660,16 +676,19 @@ abstract contract AbsToken is IERC20, Ownable {
         calApy();
         apr15Minutes = apr;
     }
-
+    
+    //设置邀请人保留条件
     function setInvitorHoldCondition(uint256 amount) external onlyFunder {
         _invitorHoldCondition = amount * 10 ** _decimals;
     }
 
+    // onlyFunder的定义
     modifier onlyFunder() {
         require(_owner == msg.sender || fundAddress == msg.sender, "!Funder");
         _;
     }
-
+    
+    // 邀请者，邀请进来的人，在项目里？
     mapping(address => address) public _inviter;
     mapping(address => address[]) private _binders;
     mapping(address => bool) public _inProject;
@@ -696,6 +715,7 @@ abstract contract AbsToken is IERC20, Ownable {
         }
     }
 
+    //设置到这个项目里，这个合约还有对一群项目之间地址关系检查的能力。
     function setInProject(address adr, bool enable) external onlyFunder {
         _inProject[adr] = enable;
     }
