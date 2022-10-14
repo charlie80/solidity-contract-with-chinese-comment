@@ -1,27 +1,39 @@
 // SPDX-License-Identifier: MIT
-
+// 使用0.8.16的合约编译器
 pragma solidity ^0.8.16;
-
+//接口 IERC20
 interface IERC20 {
+    /*
+    Solidity对函数和状态变量提供了四种可见性。分别是external,public,internal,private。    
+    internal，private是只鞥是自己的内部使用,子合约是不能继承他的
+    exteral，public子合约是可以继承的
+    constant：如果加了constant的话，就不用调用call方法来获取值,比如在终端的时候不用调用这个call方法,直接可以打印出来了，可以返回变量的值
+    public：说明是外部的话就可以调用的，在合约里面是可以调用这个值的string   name ,string  public  name，后者在合约里面是有显示的
+    view: 既没有返回什么状态变量的值，也没有什么存粹的值的话(return 10,'hello'这些的) 比如返回return msg.render就可以使用view
+    pure: 就是很纯粹的意思，就是具体返回什么值回来，不是变量 如果下面是return p（带有状态变量的值）的话，不能用这个pure，得用constant，如果是return 12具体的某个数值的话，就可以用pure    
+    */
+    
+    // 精度方法 外部可以访问的 view 返回值为 uint8类型    
     function decimals() external view returns (uint8);
-
+    // 符号方法 外部可访问的 返回值是字符串 内存中的
     function symbol() external view returns (string memory);
-
+    // 名字方法
     function name() external view returns (string memory);
-
+    // 总供应量方法
     function totalSupply() external view returns (uint256);
-
+    // 余额方法， 参数为地址类型的 叫做账号的变量，返回 无符号整数 256位
     function balanceOf(address account) external view returns (uint256);
-
+    // 转账方法 (接受者,数量)
     function transfer(address recipient, uint256 amount) external returns (bool);
-
+    // 补贴方法 所有者，花费者
     function allowance(address owner, address spender) external view returns (uint256);
-
+    // 批准方法 消费者，数量
     function approve(address spender, uint256 amount) external returns (bool);
-
+    // 从某地址转账 发送者地址，接受者地址，转账数量 返回为 是否成功
     function transferFrom(address sender, address recipient, uint256 amount) external returns (bool);
-
+    // 转账事件
     event Transfer(address indexed from, address indexed to, uint256 value);
+    // 承认事件
     event Approval(address indexed owner, address indexed spender, uint256 value);
 }
 
