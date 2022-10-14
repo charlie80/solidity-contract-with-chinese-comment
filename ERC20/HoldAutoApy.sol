@@ -37,47 +37,58 @@ interface IERC20 {
     event Approval(address indexed owner, address indexed spender, uint256 value);
 }
 
+// 接口 交换路由器 ISwap
 interface ISwapRouter {
+    // 方法 工厂 返回一个地址
     function factory() external pure returns (address);
-
+    // 将 ExactTokens(确切的代币) 交换为支持 TransferTokens(转账的代币) 费用的代币
     function swapExactTokensForTokensSupportingFeeOnTransferTokens(
-        uint amountIn,
-        uint amountOutMin,
-        address[] calldata path,
-        address to,
-        uint deadline
-    ) external;
+        uint amountIn, // 转入的金额
+        uint amountOutMin, // 最小的转出金额
+        address[] calldata path, // 地址数组 调用数据路径，这应该是pancake 需要的转账路径
+        address to, // 到的地址
+        uint deadline // 最后期限
+    ) external;  //外部可访问
 }
 
+// 接口 swap 的工厂方法
 interface ISwapFactory {
+    // 创建币对，或者说是流动性，A token的地址，B token的地址 。外部可访问，返回地址为币对
     function createPair(address tokenA, address tokenB) external returns (address pair);
 }
 
+// 抽象合约 可拥有 
 abstract contract Ownable {
+    // 地址类型的变量 拥有者，internal为内部访问
     address internal _owner;
-
+    // 事件 所有权转让 。以前的所有者，新的所有者  indexed 为索引。
     event OwnershipTransferred(address indexed previousOwner, address indexed newOwner);
-
+    // 构造函数, 部署代码时执行的方法
     constructor () {
+        // 当前钱包地址保存为 msgSender 消息发送者
         address msgSender = msg.sender;
+        // 合约持有者也是 这个钱包
         _owner = msgSender;
+        // 发出所有权转移,的事件。 空地址，持有者钱包。这里应该是放弃权限的意思。
         emit OwnershipTransferred(address(0), msgSender);
     }
-
+    // 持有者方法，返回持有者的地址。如果是使用某个钱包部署返回的就是这个地址。
     function owner() public view returns (address) {
         return _owner;
     }
-
+    // 修饰符 onlyOwner
     modifier onlyOwner() {
+        // 必须性判断，就是if else。如果钱包地址不是_owner的地址，返回不是拥有者
         require(_owner == msg.sender, "!owner");
+        // 在用 nonReentrant 修饰一个函数时， 这个函数的函数体代码就会放入这个位置。也有说法是优先级，具体再看看。
         _;
     }
-
+    // 放弃所有权的方法
     function renounceOwnership() public virtual onlyOwner {
         emit OwnershipTransferred(_owner, address(0));
         _owner = address(0);
     }
-
+    // 转让所有权的方法
     function transferOwnership(address newOwner) public virtual onlyOwner {
         require(newOwner != address(0), "new is 0");
         emit OwnershipTransferred(_owner, newOwner);
@@ -85,21 +96,28 @@ abstract contract Ownable {
     }
 }
 
+// 接口 swap 币对
 interface ISwapPair {
+    // 同步
     function sync() external;
 }
 
+// 合约 代币发行商
 contract TokenDistributor {
     constructor (address token) {
         //将token代币授权给创建合约的地址，数量为最大整数，可以认为是无限大，在本合约中是USDT
         //因为swap合约要求，兑换的接收地址不能是swapPair的两个代币合约地址，所以在非主链币交易对的时候，
         //都需要一个类似这样的中转合约来接收兑换的代币，然后再将中转合约地址里的代币转出，需要调用transferFrom方法，该方法需要授权
         //当然，中转合约还有别的写法
+        // approve (当前地址， uint(~uint256(0))。。。 两次类型转换。应该是请求授权相关操作。
         IERC20(token).approve(msg.sender, uint(~uint256(0)));
     }
 }
 
+// 真正的开始声明合约，
+// 抽象合约 AbsToken 为 IERC20，Ownable. 就是从上面的接口和合约继承。
 abstract contract AbsToken is IERC20, Ownable {
+    // 声明一个映射结构 用来保存 _津贴，这里的津贴就是抽水。
     mapping(address => mapping(address => uint256)) private _allowances;
 
     //营销钱包
@@ -107,6 +125,7 @@ abstract contract AbsToken is IERC20, Ownable {
     //营销钱包2
     address public fundAddress2;
 
+    // 名字，符号，精度
     string private _name;
     string private _symbol;
     uint8 private _decimals;
@@ -136,9 +155,10 @@ abstract contract AbsToken is IERC20, Ownable {
     //放大比例后的数量，初始_rOwned[account]=_tOwned[account]*_rTotal/_tTotal
     mapping(address => uint256) public _rOwned;
     //真实拥有的数量，一般初始化或者不参与复利分红时有用
-    mapping(address => uint256) public _tOwned;
-    uint256 public constant MAX = ~uint256(0);
-
+    mapping(address => uint256) public _tOwned; 
+    uint256 public constant MAX = ~uint256(0); // ~uint256(0) 这应该是最大值的写法
+    
+    // 币对列表
     mapping(address => bool) public _swapPairList;
 
     //单地址限制持有数量，0表示不限制
@@ -158,10 +178,14 @@ abstract contract AbsToken is IERC20, Ownable {
     //防止合约卖币时，方法重入，陷入无限递归
     bool private inSwap;
 
+    // 令牌分配器
     TokenDistributor public _tokenDistributor;
+    // usdt 的合约地址
     address public _usdt;
+    // 交换路由
     ISwapRouter public _swapRouter;
 
+    // 构造函数，上面的几个变量都可以在创建前填写。
     constructor (address RouteAddress, address USDTAddress,
         string memory Name, string memory Symbol, uint8 Decimals, uint256 Supply,
         address ReceivedAddress, address FundAddress, address FundAddress2){
@@ -172,10 +196,11 @@ abstract contract AbsToken is IERC20, Ownable {
         ISwapRouter swapRouter = ISwapRouter(RouteAddress);
         _swapRouter = swapRouter;
         //因为要回流，提前将本合约地址的本代币授权给路由地址，数量为最大整数
+        // _allowances 津贴
         _allowances[address(this)][address(swapRouter)] = MAX;
 
         _usdt = USDTAddress;
-        //创建USDT交易对
+        //创建USDT交易对， 构造时就创建和swap的流动性。这是通过接口去访问区块链中的其他合约了。固定用法
         address usdtPair = ISwapFactory(swapRouter.factory()).createPair(address(this), USDTAddress);
         _swapPairList[usdtPair] = true;
         //交易对不进行复利
@@ -206,7 +231,7 @@ abstract contract AbsToken is IERC20, Ownable {
 
         _inProject[msg.sender] = true;
 
-        //创建接收合约兑换后接收USDT的中转合约
+        //创建接收合约兑换后接收USDT的中转合约， 这意思就是有个合约处理存U的地址。
         _tokenDistributor = new TokenDistributor(USDTAddress);
     }
 
